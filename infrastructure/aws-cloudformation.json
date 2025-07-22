@@ -1,0 +1,412 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "LambdaDeploymentBucketName": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket where Lambda deployments are stored."
+    }
+  },
+  "Resources": {
+    "UserTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "UserTable",
+        "AttributeDefinitions": [
+          { "AttributeName": "ID", "AttributeType": "S" },
+          { "AttributeName": "Username", "AttributeType": "S" }
+        ],
+        "KeySchema": [
+          { "AttributeName": "ID", "KeyType": "HASH" }
+        ],
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "UsernameIndex",
+            "KeySchema": [
+              { "AttributeName": "Username", "KeyType": "HASH" }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST"
+      }
+    },
+    "DeviceTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "DeviceTable",
+        "AttributeDefinitions": [
+          { "AttributeName": "ID", "AttributeType": "S" }
+        ],
+        "KeySchema": [
+          { "AttributeName": "ID", "KeyType": "HASH" }
+        ],
+        "BillingMode": "PAY_PER_REQUEST"
+      }
+    },
+    "PhoneNumberTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "PhoneNumberTable",
+        "AttributeDefinitions": [
+          { "AttributeName": "ID", "AttributeType": "S" },
+          { "AttributeName": "Number", "AttributeType": "S" }
+        ],
+        "KeySchema": [
+          { "AttributeName": "ID", "KeyType": "HASH" }
+        ],
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "NumberIndex",
+            "KeySchema": [
+              { "AttributeName": "Number", "KeyType": "HASH" }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST"
+      }
+    },
+    "SMSRelayRequestDLQ": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "SMSRelayRequestDLQ"
+      }
+    },
+    "SMSRelayRequestQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "SMSRelayRequestQueue",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": { "Fn::GetAtt": ["SMSRelayRequestDLQ", "Arn"] },
+          "maxReceiveCount": 5
+        }
+      }
+    },
+    "SMSRelayApiHandlerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "SMSRelayApiHandlerPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:*",
+                    "sqs:*"
+                  ],
+                  "Resource": [
+                    { "Fn::GetAtt": ["UserTable", "Arn"] },
+                    { "Fn::GetAtt": ["DeviceTable", "Arn"] },
+                    { "Fn::GetAtt": ["PhoneNumberTable", "Arn"] },
+                    { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue"
+                  ],
+                  "Resource": { "Ref": "JWTSecret" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SMSRelayApiAuthenticatorRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "SMSRelayApiAuthenticatorPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:*",
+                  "Resource": [
+                    { "Fn::GetAtt": ["UserTable", "Arn"] },
+                    { "Fn::GetAtt": ["DeviceTable", "Arn"] },
+                    { "Fn::GetAtt": ["PhoneNumberTable", "Arn"] }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue"
+                  ],
+                  "Resource": { "Ref": "JWTSecret" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SMSRelayForwarderRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "SMSRelayForwarderPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "sqs:*",
+                  "Resource": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SMSRelayApiGateway": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "SMSRelayApiGateway"
+      }
+    },
+    "SMSRelayApiHandler": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "sms-relay-api-handler",
+        "Runtime": "provided.al2",
+        "Handler": "main",
+        "Code": {
+          "S3Bucket": { "Ref": "LambdaDeploymentBucketName" },
+          "S3Key": "sms-relay-api-handler.zip"
+        },
+        "Role": { "Fn::GetAtt": ["SMSRelayApiHandlerRole", "Arn"] },
+        "MemorySize": 128,
+        "Timeout": 10,
+        "Environment": {
+          "Variables": {
+            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
+          }
+        }
+      }
+    },
+    "SMSRelayApiAuthenticator": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "sms-relay-api-authenticator",
+        "Runtime": "provided.al2",
+        "Handler": "main",
+        "Code": {
+          "S3Bucket": { "Ref": "LambdaDeploymentBucketName" },
+          "S3Key": "sms-relay-api-authenticator.zip"
+        },
+        "Role": { "Fn::GetAtt": ["SMSRelayApiAuthenticatorRole", "Arn"] },
+        "MemorySize": 128,
+        "Timeout": 10,
+        "Environment": {
+          "Variables": {
+            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
+          }
+        }
+      }
+    },
+    "SMSRelayForwarder": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "sms-relay-forwarder",
+        "Runtime": "provided.al2",
+        "Handler": "main",
+        "Code": {
+          "S3Bucket": { "Ref": "LambdaDeploymentBucketName" },
+          "S3Key": "sms-relay-forwarder.zip"
+        },
+        "Role": { "Fn::GetAtt": ["SMSRelayForwarderRole", "Arn"] },
+        "MemorySize": 128,
+        "Timeout": 10
+      }
+    },
+    "SMSRelayQueueToForwarderMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "BatchSize": 10,
+        "EventSourceArn": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] },
+        "FunctionName": { "Ref": "SMSRelayForwarder" }
+      }
+    },
+    "JWTSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "JWTSecret",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "JWTKey",
+          "PasswordLength": 256,
+          "ExcludeCharacters": "\"'`"
+        }
+      }
+    },
+    "LoginResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": { "Fn::GetAtt": ["SMSRelayApiGateway", "RootResourceId"] },
+        "PathPart": "login",
+        "RestApiId": { "Ref": "SMSRelayApiGateway" }
+      }
+    },
+    "LoginPostMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "POST",
+        "ResourceId": { "Ref": "LoginResource" },
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiHandler.Arn}/invocations" }
+        }
+      }
+    },
+    "SmsResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": { "Fn::GetAtt": ["SMSRelayApiGateway", "RootResourceId"] },
+        "PathPart": "sms",
+        "RestApiId": { "Ref": "SMSRelayApiGateway" }
+      }
+    },
+    "SmsProxyResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": { "Ref": "SmsResource" },
+        "PathPart": "{proxy+}",
+        "RestApiId": { "Ref": "SMSRelayApiGateway" }
+      }
+    },
+    "SmsProxyMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "ANY",
+        "ResourceId": { "Ref": "SmsProxyResource" },
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "AuthorizationType": "CUSTOM",
+        "AuthorizerId": { "Ref": "SmsAuthorizer" },
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiHandler.Arn}/invocations" }
+        }
+      }
+    },
+    "SmsAuthorizer": {
+      "Type": "AWS::ApiGateway::Authorizer",
+      "Properties": {
+        "Name": "SmsAuthorizer",
+        "Type": "TOKEN",
+        "IdentitySource": "method.request.header.Bearer",
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "AuthorizerUri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiAuthenticator.Arn}/invocations" }
+      }
+    },
+    "ApiGatewayDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "StageName": "prod"
+      },
+      "DependsOn": ["LoginPostMethod", "SmsProxyMethod"]
+    },
+    "ApiGatewayInvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": { "Fn::GetAtt": ["SMSRelayApiHandler", "Arn"] },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": { "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SMSRelayApiGateway}/*" }
+      }
+    },
+    "ApiGatewayInvokeAuthenticatorPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": { "Fn::GetAtt": ["SMSRelayApiAuthenticator", "Arn"] },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": { "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SMSRelayApiGateway}/*" }
+      }
+    }
+  },
+  "Outputs": {
+    "SQSQueueArn": {
+      "Description": "ARN of the main SQS queue",
+      "Value": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
+    },
+    "JWTSecretArn": {
+      "Description": "ARN of the JWT secret",
+      "Value": { "Ref": "JWTSecret" }
+    },
+    "ApiGatewayId": {
+      "Description": "ID of the API Gateway",
+      "Value": { "Ref": "SMSRelayApiGateway" }
+    },
+    "ApiHandlerArn": {
+      "Description": "ARN of the API handler Lambda",
+      "Value": { "Fn::GetAtt": ["SMSRelayApiHandler", "Arn"] }
+    },
+    "AuthenticatorArn": {
+      "Description": "ARN of the API authenticator Lambda",
+      "Value": { "Fn::GetAtt": ["SMSRelayApiAuthenticator", "Arn"] }
+    },
+    "ForwarderArn": {
+      "Description": "ARN of the forwarder Lambda",
+      "Value": { "Fn::GetAtt": ["SMSRelayForwarder", "Arn"] }
+    },
+    "ApiGatewayUrl": {
+      "Description": "URL of the API Gateway",
+      "Value": { "Fn::Sub": "https://${SMSRelayApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod" }
+    }
+  }
+}
