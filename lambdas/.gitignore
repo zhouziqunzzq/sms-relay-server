@@ -1,2 +1,4 @@
 # Build Lambda zip files
 *.zip
+# Build artifacts
+boostrap
