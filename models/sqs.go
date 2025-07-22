@@ -1,6 +1,7 @@
 package models
 
 type SMSRelayRequest struct {
-	DeviceID string `json:"device_id"` // UUID of the device making the request
-	SMS      SMS    `json:"sms"`       // SMS message details
+	Device      Device      `json:"device"`       // Device details
+	PhoneNumber PhoneNumber `json:"phone_number"` // Phone number details
+	SMS         SMS         `json:"sms"`          // SMS message details
 }
