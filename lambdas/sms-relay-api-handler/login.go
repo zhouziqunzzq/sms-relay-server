@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
+	"github.com/zhouziqunzzq/sms-relay-server/common"
 	"github.com/zhouziqunzzq/sms-relay-server/models"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -84,7 +82,7 @@ func handlePostLogin(ctx context.Context, request events.APIGatewayProxyRequest)
 	}
 
 	// Fetch the secret value for JWT
-	jwtSigningSecret, err := getSecretValue(ctx, jwtSecretName)
+	jwtSigningSecret, err := common.GetSecretValue(ctx, secretsClient, jwtSecretName)
 	if err != nil {
 		logger.Println("error fetching JWT secret")
 		return events.APIGatewayProxyResponse{
@@ -122,21 +120,4 @@ func handlePostLogin(ctx context.Context, request events.APIGatewayProxyRequest)
 		StatusCode: 200,
 		Body:       string(responseBody),
 	}, nil
-}
-
-func getSecretValue(ctx context.Context, secretName string) (string, error) {
-	input := &secretsmanager.GetSecretValueInput{
-		SecretId: &secretName,
-	}
-	result, err := secretsClient.GetSecretValue(ctx, input)
-	if err != nil {
-		var resourceNotFound *types.ResourceNotFoundException
-		if errors.As(err, &resourceNotFound) {
-			logger.Printf("secret %s not found\n", secretName)
-			return "", err
-		}
-		logger.Printf("error fetching secret %s: %v\n", secretName, err)
-		return "", err
-	}
-	return *result.SecretString, nil
 }
