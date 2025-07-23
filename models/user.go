@@ -1,5 +1,11 @@
 package models
 
+import (
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
 const (
 	UserTypeUser   = "USER"   // UserTypeUser represents a regular user account
 	UserTypeDevice = "DEVICE" // UserTypeDevice represents a device account
@@ -18,4 +24,20 @@ type User struct {
 
 	CreatedAt string `json:"created_at,omitempty"` // Timestamp of when the user was created
 	UpdatedAt string `json:"updated_at,omitempty"` // Timestamp of when the user was last updated
+}
+
+func (u *User) IsDevice() bool {
+	return u.UserType == UserTypeDevice
+}
+
+func (u *User) GenerateJWT(jwtSecretKey []byte, expireAfter time.Time) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":       "sms-relay-server",
+		"sub":       u.ID,
+		"iat":       time.Now().Format(time.RFC3339),
+		"exp":       expireAfter.Format(time.RFC3339),
+		"user_type": u.UserType,
+		"device_id": u.DeviceID,
+	})
+	return token.SignedString(jwtSecretKey)
 }

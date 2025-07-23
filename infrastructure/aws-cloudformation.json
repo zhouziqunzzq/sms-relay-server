@@ -126,10 +126,21 @@
                     "secretsmanager:GetSecretValue"
                   ],
                   "Resource": { "Ref": "JWTSecret" }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:Query",
+                  "Resource": [
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                  ]
                 }
               ]
             }
           }
+        ],
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
         ]
       }
     },
@@ -169,10 +180,21 @@
                     "secretsmanager:GetSecretValue"
                   ],
                   "Resource": { "Ref": "JWTSecret" }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:Query",
+                  "Resource": [
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                  ]
                 }
               ]
             }
           }
+        ],
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
         ]
       }
     },
@@ -205,6 +227,9 @@
               ]
             }
           }
+        ],
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
         ]
       }
     },
