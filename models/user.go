@@ -34,8 +34,9 @@ func (u *User) GenerateJWT(jwtSecretKey []byte, expireAfter time.Time) (string, 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"iss":       "sms-relay-server",
 		"sub":       u.ID,
-		"iat":       time.Now().Format(time.RFC3339),
-		"exp":       expireAfter.Format(time.RFC3339),
+		"iat":       time.Now().Unix(),
+		"exp":       expireAfter.Unix(),
+		"alg":       "HS256",
 		"user_type": u.UserType,
 		"device_id": u.DeviceID,
 	})

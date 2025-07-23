@@ -367,12 +367,27 @@
         }
       }
     },
+    "SmsMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "ANY",
+        "ResourceId": { "Ref": "SmsResource" },
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "AuthorizationType": "CUSTOM",
+        "AuthorizerId": { "Ref": "SmsAuthorizer" },
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiHandler.Arn}/invocations" }
+        }
+      }
+    },
     "SmsAuthorizer": {
       "Type": "AWS::ApiGateway::Authorizer",
       "Properties": {
         "Name": "SmsAuthorizer",
         "Type": "TOKEN",
-        "IdentitySource": "method.request.header.Bearer",
+        "IdentitySource": "method.request.header.Authorization",
         "RestApiId": { "Ref": "SMSRelayApiGateway" },
         "AuthorizerUri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiAuthenticator.Arn}/invocations" }
       }
