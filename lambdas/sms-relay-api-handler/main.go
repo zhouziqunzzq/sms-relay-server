@@ -11,12 +11,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
 const (
-	defaultAWSRegion    = "us-west-2"
-	userTableName       = "UserTable"
-	usernameIndexName   = "UsernameIndex"
+	defaultAWSRegion = "us-west-2"
+
+	userTableName        = "UserTable"
+	usernameIndexName    = "UsernameIndex"
+	deviceTableName      = "DeviceTable"
+	phoneNumberTableName = "PhoneNumberTable"
+	phoneNumberIndexName = "PhoneNumberIndex"
+
 	jwtSecretName       = "JWTSecret"
 	jwtValidityDuration = time.Hour * 24 * 7 // 7 days
 )
@@ -25,10 +31,13 @@ var (
 	logger        = log.Default()
 	dbClient      *dynamodb.Client
 	secretsClient *secretsmanager.Client
+	sqsClient     *sqs.Client
+	sqsQueueURL   string
 )
 
 // init initializes the DynamoDB and Secrets Manager clients.
 func init() {
+	// Initialize AWS clients
 	awsRegion := defaultAWSRegion
 	if region := os.Getenv("AWS_REGION"); region != "" {
 		awsRegion = region
@@ -39,7 +48,14 @@ func init() {
 	}
 	dbClient = dynamodb.NewFromConfig(cfg)
 	secretsClient = secretsmanager.NewFromConfig(cfg)
-	logger.Println("DynamoDB and Secrets Manager clients initialized")
+	sqsClient = sqs.NewFromConfig(cfg)
+	logger.Println("DynamoDB, Secrets Manager, and SQS clients initialized")
+
+	// Get the SQS queue URL from the environment variable
+	sqsQueueURL = os.Getenv("SMS_RELAY_REQUEST_QUEUE_URL")
+	if sqsQueueURL == "" {
+		logger.Fatalf("SMS_RELAY_REQUEST_QUEUE_URL environment variable is not set")
+	}
 }
 
 // handler processes incoming API Gateway requests and routes them to the appropriate function

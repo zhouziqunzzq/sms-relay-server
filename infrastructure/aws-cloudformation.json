@@ -51,16 +51,16 @@
         "TableName": "PhoneNumberTable",
         "AttributeDefinitions": [
           { "AttributeName": "ID", "AttributeType": "S" },
-          { "AttributeName": "Number", "AttributeType": "S" }
+          { "AttributeName": "PhoneNumber", "AttributeType": "S" }
         ],
         "KeySchema": [
           { "AttributeName": "ID", "KeyType": "HASH" }
         ],
         "GlobalSecondaryIndexes": [
           {
-            "IndexName": "NumberIndex",
+            "IndexName": "PhoneNumberIndex",
             "KeySchema": [
-              { "AttributeName": "Number", "KeyType": "HASH" }
+              { "AttributeName": "PhoneNumber", "KeyType": "HASH" }
             ],
             "Projection": {
               "ProjectionType": "ALL"
@@ -132,7 +132,7 @@
                   "Action": "dynamodb:Query",
                   "Resource": [
                     { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/PhoneNumberIndex" }
                   ]
                 }
               ]
@@ -186,7 +186,7 @@
                   "Action": "dynamodb:Query",
                   "Resource": [
                     { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/PhoneNumberIndex" }
                   ]
                 }
               ]
@@ -254,7 +254,7 @@
         "Timeout": 10,
         "Environment": {
           "Variables": {
-            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
+            "SMS_RELAY_REQUEST_QUEUE_URL": { "Ref": "SMSRelayRequestQueue" }
           }
         }
       }
@@ -271,12 +271,7 @@
         },
         "Role": { "Fn::GetAtt": ["SMSRelayApiAuthenticatorRole", "Arn"] },
         "MemorySize": 128,
-        "Timeout": 10,
-        "Environment": {
-          "Variables": {
-            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
-          }
-        }
+        "Timeout": 10
       }
     },
     "SMSRelayForwarder": {
@@ -424,6 +419,10 @@
       "Description": "ARN of the main SQS queue",
       "Value": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
     },
+    "SMSRelayRequestQueueURL": {
+      "Description": "URL of the main SQS queue",
+      "Value": { "Ref": "SMSRelayRequestQueue" }
+    },
     "JWTSecretArn": {
       "Description": "ARN of the JWT secret",
       "Value": { "Ref": "JWTSecret" }
@@ -444,7 +443,7 @@
       "Description": "ARN of the forwarder Lambda",
       "Value": { "Fn::GetAtt": ["SMSRelayForwarder", "Arn"] }
     },
-    "ApiGatewayUrl": {
+    "ApiGatewayURL": {
       "Description": "URL of the API Gateway",
       "Value": { "Fn::Sub": "https://${SMSRelayApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod" }
     }
