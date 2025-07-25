@@ -11,7 +11,8 @@ import (
 )
 
 type SMSRequest struct {
-	PhoneNumber string `json:"phone_number"` // Phone number of the sender, in E.164 format
+	PhoneNumber string `json:"phone_number"` // Phone number receiving the SMS, in E.164 format
+	From        string `json:"from"`         // Phone number of the sender, in E.164 format
 	Body        string `json:"body"`         // Content of the SMS message
 }
 
@@ -28,6 +29,7 @@ func handlePostSMS(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	// Validate user type and device ID
 	userType := request.RequestContext.Authorizer["user_type"].(string)
+	userName := request.RequestContext.Authorizer["user_name"].(string)
 	deviceID := request.RequestContext.Authorizer["device_id"].(string)
 	if userType != models.UserTypeDevice || deviceID == "" {
 		logger.Printf("invalid user type or device ID: %s, %s", userType, deviceID)
@@ -46,11 +48,11 @@ func handlePostSMS(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Body:       "Invalid request body",
 		}, nil
 	}
-	if smsReq.PhoneNumber == "" || smsReq.Body == "" {
+	if smsReq.PhoneNumber == "" || smsReq.From == "" || smsReq.Body == "" {
 		logger.Println("phone number or body is empty")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
-			Body:       "Phone number and body are required",
+			Body:       "Phone number, from and body are required",
 		}, nil
 	}
 
@@ -104,9 +106,10 @@ func handlePostSMS(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Construct the SQS message
 	smsRelayRequest := models.SMSRelayRequest{
 		Device:      *device,
+		DeviceName:  userName,
 		PhoneNumber: *phoneNumber,
 		SMS: models.SMS{
-			From:          smsReq.PhoneNumber,
+			From:          smsReq.From,
 			Body:          smsReq.Body,
 			PhoneNumberID: phoneNumber.ID,
 		},

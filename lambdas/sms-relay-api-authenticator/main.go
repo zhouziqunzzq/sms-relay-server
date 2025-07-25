@@ -60,7 +60,7 @@ func handler(ctx context.Context, request events.APIGatewayCustomAuthorizerReque
 	tokenString := strings.TrimPrefix(request.AuthorizationToken, bearerPrefix)
 
 	// Retrieve the JWT secret using the helper function from the common package
-	jwtSecretKey, err := common.GetSecretValue(ctx, secretsClient, jwtSecretName)
+	jwtSecretKey, err := common.GetSecretValue(ctx, secretsClient, jwtSecretName, "JWTKey")
 	if err != nil {
 		logger.Printf("failed to retrieve JWT secret: %v", err)
 		return events.APIGatewayCustomAuthorizerResponse{
@@ -102,6 +102,7 @@ func handler(ctx context.Context, request events.APIGatewayCustomAuthorizerReque
 		PolicyDocument: generatePolicy(principalID, "Allow", request.MethodArn),
 		Context: map[string]any{
 			"user_type": claims["user_type"],
+			"user_name": claims["user_name"],
 			"device_id": claims["device_id"],
 		},
 	}, nil

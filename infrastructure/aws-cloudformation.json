@@ -4,6 +4,22 @@
     "LambdaDeploymentBucketName": {
       "Type": "String",
       "Description": "Name of the S3 bucket where Lambda deployments are stored."
+    },
+    "SMTPServer": {
+      "Type": "String",
+      "Description": "SMTP server address for sending emails.",
+      "Default": "smtp.example.com"
+    },
+    "SMTPPort": {
+      "Type": "Number",
+      "Description": "SMTP server port for sending emails.",
+      "Default": 465
+    },
+    "SSL": {
+      "Type": "String",
+      "Description": "Toggle SSL for SMTP (true or false)",
+      "Default": "true",
+      "AllowedValues": ["true", "false"]
     }
   },
   "Resources": {
@@ -223,6 +239,14 @@
                   "Effect": "Allow",
                   "Action": "sqs:*",
                   "Resource": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": [
+                    { "Ref": "SMTPUsernameSecret" },
+                    { "Ref": "SMTPPasswordSecret" }
+                  ]
                 }
               ]
             }
@@ -286,7 +310,14 @@
         },
         "Role": { "Fn::GetAtt": ["SMSRelayForwarderRole", "Arn"] },
         "MemorySize": 128,
-        "Timeout": 10
+        "Timeout": 10,
+        "Environment": {
+          "Variables": {
+            "SMTP_SERVER": { "Ref": "SMTPServer" },
+            "SMTP_PORT": { "Ref": "SMTPPort" },
+            "SSL": { "Ref": "SSL" }
+          }
+        }
       }
     },
     "SMSRelayQueueToForwarderMapping": {
@@ -306,6 +337,28 @@
           "GenerateStringKey": "JWTKey",
           "PasswordLength": 256,
           "ExcludeCharacters": "\"'`"
+        }
+      }
+    },
+    "SMTPUsernameSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "SMTPUsername",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "username",
+          "PasswordLength": 16
+        }
+      }
+    },
+    "SMTPPasswordSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "SMTPPassword",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 32
         }
       }
     },
@@ -426,6 +479,14 @@
     "JWTSecretArn": {
       "Description": "ARN of the JWT secret",
       "Value": { "Ref": "JWTSecret" }
+    },
+    "SMTPUsernameSecretArn": {
+      "Description": "ARN of the SMTP username secret",
+      "Value": { "Ref": "SMTPUsernameSecret" }
+    },
+    "SMTPPasswordSecretArn": {
+      "Description": "ARN of the SMTP password secret",
+      "Value": { "Ref": "SMTPPasswordSecret" }
     },
     "ApiGatewayId": {
       "Description": "ID of the API Gateway",

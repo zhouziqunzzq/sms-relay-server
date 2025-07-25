@@ -82,17 +82,17 @@ func handlePostLogin(ctx context.Context, request events.APIGatewayProxyRequest)
 	}
 
 	// Fetch the secret value for JWT
-	jwtSigningSecret, err := common.GetSecretValue(ctx, secretsClient, jwtSecretName)
+	jwtSigningKey, err := common.GetSecretValue(ctx, secretsClient, jwtSecretName, "JWTKey")
 	if err != nil {
-		logger.Println("error fetching JWT secret")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
 			Body:       "Internal Server Error",
 		}, nil
 	}
+
 	// Generate JWT token
 	expirationTime := time.Now().Add(jwtValidityDuration)
-	signedToken, err := user.GenerateJWT([]byte(jwtSigningSecret), expirationTime)
+	signedToken, err := user.GenerateJWT([]byte(jwtSigningKey), expirationTime)
 	if err != nil {
 		logger.Println("error generating JWT token")
 		return events.APIGatewayProxyResponse{

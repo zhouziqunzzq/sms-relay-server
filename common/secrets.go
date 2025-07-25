@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 
@@ -9,8 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
-// GetSecretValue retrieves the value of a secret from AWS Secrets Manager.
-func GetSecretValue(ctx context.Context, secretsClient *secretsmanager.Client, secretName string) (string, error) {
+// GetSecretValue retrieves the value of a secret from AWS Secrets Manager. If a key is provided,
+// it parses the JSON secret and returns the value for the key.
+func GetSecretValue(ctx context.Context, secretsClient *secretsmanager.Client, secretName string, key string) (string, error) {
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: &secretName,
 	}
@@ -24,5 +26,22 @@ func GetSecretValue(ctx context.Context, secretsClient *secretsmanager.Client, s
 		log.Printf("error fetching secret %s: %v\n", secretName, err)
 		return "", err
 	}
-	return *result.SecretString, nil
+
+	if key == "" {
+		return *result.SecretString, nil
+	}
+
+	var secretMap map[string]string
+	if err := json.Unmarshal([]byte(*result.SecretString), &secretMap); err != nil {
+		log.Printf("error parsing secret %s as JSON: %v\n", secretName, err)
+		return "", err
+	}
+
+	value, exists := secretMap[key]
+	if !exists {
+		log.Printf("key %s not found in secret %s\n", key, secretName)
+		return "", errors.New("key not found in secret")
+	}
+
+	return value, nil
 }
