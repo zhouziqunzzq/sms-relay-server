@@ -35,3 +35,53 @@ func getUserByUsername(ctx context.Context, username string) (*models.User, erro
 
 	return &user, nil
 }
+
+func getDeviceByID(ctx context.Context, deviceID string) (*models.Device, error) {
+	input := &dynamodb.GetItemInput{
+		TableName: aws.String(deviceTableName),
+		Key: map[string]types.AttributeValue{
+			"ID": &types.AttributeValueMemberS{Value: deviceID},
+		},
+	}
+
+	result, err := dbClient.GetItem(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if result.Item == nil {
+		return nil, nil // Device not found
+	}
+
+	var device models.Device
+	if err := attributevalue.UnmarshalMap(result.Item, &device); err != nil {
+		return nil, err
+	}
+
+	return &device, nil
+}
+
+func getPhoneNumberByPhoneNumber(ctx context.Context, number string) (*models.PhoneNumber, error) {
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String(phoneNumberTableName),
+		IndexName:              aws.String(phoneNumberIndexName),
+		KeyConditionExpression: aws.String("PhoneNumber = :phoneNumber"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":phoneNumber": &types.AttributeValueMemberS{Value: number},
+		},
+	}
+
+	result, err := dbClient.Query(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Items) == 0 {
+		return nil, nil // Phone number not found
+	}
+
+	var phoneNumber models.PhoneNumber
+	if err := attributevalue.UnmarshalMap(result.Items[0], &phoneNumber); err != nil {
+		return nil, err
+	}
+
+	return &phoneNumber, nil
+}

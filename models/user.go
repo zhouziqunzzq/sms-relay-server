@@ -38,6 +38,7 @@ func (u *User) GenerateJWT(jwtSecretKey []byte, expireAfter time.Time) (string, 
 		"exp":       expireAfter.Unix(),
 		"alg":       "HS256",
 		"user_type": u.UserType,
+		"user_name": u.Name,
 		"device_id": u.DeviceID,
 	})
 	return token.SignedString(jwtSecretKey)

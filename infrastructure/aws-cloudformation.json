@@ -4,6 +4,22 @@
     "LambdaDeploymentBucketName": {
       "Type": "String",
       "Description": "Name of the S3 bucket where Lambda deployments are stored."
+    },
+    "SMTPServer": {
+      "Type": "String",
+      "Description": "SMTP server address for sending emails.",
+      "Default": "smtp.example.com"
+    },
+    "SMTPPort": {
+      "Type": "Number",
+      "Description": "SMTP server port for sending emails.",
+      "Default": 465
+    },
+    "SSL": {
+      "Type": "String",
+      "Description": "Toggle SSL for SMTP (true or false)",
+      "Default": "true",
+      "AllowedValues": ["true", "false"]
     }
   },
   "Resources": {
@@ -51,16 +67,16 @@
         "TableName": "PhoneNumberTable",
         "AttributeDefinitions": [
           { "AttributeName": "ID", "AttributeType": "S" },
-          { "AttributeName": "Number", "AttributeType": "S" }
+          { "AttributeName": "PhoneNumber", "AttributeType": "S" }
         ],
         "KeySchema": [
           { "AttributeName": "ID", "KeyType": "HASH" }
         ],
         "GlobalSecondaryIndexes": [
           {
-            "IndexName": "NumberIndex",
+            "IndexName": "PhoneNumberIndex",
             "KeySchema": [
-              { "AttributeName": "Number", "KeyType": "HASH" }
+              { "AttributeName": "PhoneNumber", "KeyType": "HASH" }
             ],
             "Projection": {
               "ProjectionType": "ALL"
@@ -132,7 +148,7 @@
                   "Action": "dynamodb:Query",
                   "Resource": [
                     { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/PhoneNumberIndex" }
                   ]
                 }
               ]
@@ -186,7 +202,7 @@
                   "Action": "dynamodb:Query",
                   "Resource": [
                     { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserTable/index/UsernameIndex" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/NumberIndex" }
+                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/PhoneNumberTable/index/PhoneNumberIndex" }
                   ]
                 }
               ]
@@ -223,6 +239,14 @@
                   "Effect": "Allow",
                   "Action": "sqs:*",
                   "Resource": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": [
+                    { "Ref": "SMTPUsernameSecret" },
+                    { "Ref": "SMTPPasswordSecret" }
+                  ]
                 }
               ]
             }
@@ -254,7 +278,7 @@
         "Timeout": 10,
         "Environment": {
           "Variables": {
-            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
+            "SMS_RELAY_REQUEST_QUEUE_URL": { "Ref": "SMSRelayRequestQueue" }
           }
         }
       }
@@ -271,12 +295,7 @@
         },
         "Role": { "Fn::GetAtt": ["SMSRelayApiAuthenticatorRole", "Arn"] },
         "MemorySize": 128,
-        "Timeout": 10,
-        "Environment": {
-          "Variables": {
-            "JWT_SECRET_ARN": { "Ref": "JWTSecret" }
-          }
-        }
+        "Timeout": 10
       }
     },
     "SMSRelayForwarder": {
@@ -291,7 +310,14 @@
         },
         "Role": { "Fn::GetAtt": ["SMSRelayForwarderRole", "Arn"] },
         "MemorySize": 128,
-        "Timeout": 10
+        "Timeout": 10,
+        "Environment": {
+          "Variables": {
+            "SMTP_SERVER": { "Ref": "SMTPServer" },
+            "SMTP_PORT": { "Ref": "SMTPPort" },
+            "SSL": { "Ref": "SSL" }
+          }
+        }
       }
     },
     "SMSRelayQueueToForwarderMapping": {
@@ -311,6 +337,28 @@
           "GenerateStringKey": "JWTKey",
           "PasswordLength": 256,
           "ExcludeCharacters": "\"'`"
+        }
+      }
+    },
+    "SMTPUsernameSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "SMTPUsername",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "username",
+          "PasswordLength": 16
+        }
+      }
+    },
+    "SMTPPasswordSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "SMTPPassword",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 32
         }
       }
     },
@@ -424,9 +472,21 @@
       "Description": "ARN of the main SQS queue",
       "Value": { "Fn::GetAtt": ["SMSRelayRequestQueue", "Arn"] }
     },
+    "SMSRelayRequestQueueURL": {
+      "Description": "URL of the main SQS queue",
+      "Value": { "Ref": "SMSRelayRequestQueue" }
+    },
     "JWTSecretArn": {
       "Description": "ARN of the JWT secret",
       "Value": { "Ref": "JWTSecret" }
+    },
+    "SMTPUsernameSecretArn": {
+      "Description": "ARN of the SMTP username secret",
+      "Value": { "Ref": "SMTPUsernameSecret" }
+    },
+    "SMTPPasswordSecretArn": {
+      "Description": "ARN of the SMTP password secret",
+      "Value": { "Ref": "SMTPPasswordSecret" }
     },
     "ApiGatewayId": {
       "Description": "ID of the API Gateway",
@@ -444,7 +504,7 @@
       "Description": "ARN of the forwarder Lambda",
       "Value": { "Fn::GetAtt": ["SMSRelayForwarder", "Arn"] }
     },
-    "ApiGatewayUrl": {
+    "ApiGatewayURL": {
       "Description": "URL of the API Gateway",
       "Value": { "Fn::Sub": "https://${SMSRelayApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod" }
     }
