@@ -10,6 +10,30 @@ import (
 	"github.com/zhouziqunzzq/sms-relay-server/models"
 )
 
+func getUserByID(ctx context.Context, userID string) (*models.User, error) {
+	input := &dynamodb.GetItemInput{
+		TableName: aws.String(userTableName),
+		Key: map[string]types.AttributeValue{
+			"ID": &types.AttributeValueMemberS{Value: userID},
+		},
+	}
+
+	result, err := dbClient.GetItem(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if result.Item == nil {
+		return nil, nil // User not found
+	}
+
+	var user models.User
+	if err := attributevalue.UnmarshalMap(result.Item, &user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func getUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(userTableName),

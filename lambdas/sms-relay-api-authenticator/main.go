@@ -101,6 +101,7 @@ func handler(ctx context.Context, request events.APIGatewayCustomAuthorizerReque
 		PrincipalID:    principalID,
 		PolicyDocument: generatePolicy(principalID, "Allow", request.MethodArn),
 		Context: map[string]any{
+			"user_id":   principalID,
 			"user_type": claims["user_type"],
 			"user_name": claims["user_name"],
 			"device_id": claims["device_id"],
