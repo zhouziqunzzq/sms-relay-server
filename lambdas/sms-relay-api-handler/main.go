@@ -66,6 +66,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return handlePostLogin(ctx, request)
 	case "/sms":
 		return handlePostSMS(ctx, request)
+	case "/user":
+		return handleUser(ctx, request)
 	default:
 		return events.APIGatewayProxyResponse{
 			StatusCode: 404,

@@ -465,6 +465,45 @@
         "Principal": "apigateway.amazonaws.com",
         "SourceArn": { "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SMSRelayApiGateway}/*" }
       }
+    },
+    "UserResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": { "Fn::GetAtt": ["SMSRelayApiGateway", "RootResourceId"] },
+        "PathPart": "user",
+        "RestApiId": { "Ref": "SMSRelayApiGateway" }
+      }
+    },
+    "UserMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "ANY",
+        "ResourceId": { "Ref": "UserResource" },
+        "RestApiId": { "Ref": "SMSRelayApiGateway" },
+        "AuthorizationType": "CUSTOM",
+        "AuthorizerId": { "Ref": "SmsAuthorizer" },
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SMSRelayApiHandler.Arn}/invocations" }
+        }
+      }
+    },
+    "ApiGatewayUsagePlan": {
+      "Type": "AWS::ApiGateway::UsagePlan",
+      "Properties": {
+        "UsagePlanName": "SMSRelayUsagePlan",
+        "Throttle": {
+          "RateLimit": 20,
+          "BurstLimit": 5
+        },
+        "ApiStages": [
+          {
+            "ApiId": { "Ref": "SMSRelayApiGateway" },
+            "Stage": "prod"
+          }
+        ]
+      }
     }
   },
   "Outputs": {
